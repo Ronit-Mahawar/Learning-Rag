@@ -5,3 +5,5 @@ docs=data_loader();
 
 chunks=pipeline.chunk_documents(docs)
 vectors=pipeline.embed_chunks(chunks)
+
+apiKey = "lkadsfjlkdasjflkasdjflkas93493394jkdfj"
