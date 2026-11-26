@@ -7,13 +7,36 @@ from langchain_community.document_loaders import JSONLoader
 
 
 
-def load_all_documents():
-    folder_path=folder_path = Path("../data/pdf")
-    pdf_files = list(folder_path.glob("*.pdf"))
-    documents=[]
-    for pdf_file in pdf_files:
-        loader = PyPDFLoader(str(pdf_file))
-        loaded = loader.load()
-        print(f"[DEBUG] Loaded {len(loaded)} PDF docs from {pdf_file}")
+DATA_DIR = Path("../data")
+
+# File extension -> loader class. Files with other extensions are skipped.
+LOADERS = {
+    ".pdf": PyPDFLoader,
+    ".txt": TextLoader,
+    ".csv": CSVLoader,
+    ".docx": Docx2txtLoader,
+}
+
+
+def load_all_documents(data_dir: Path = DATA_DIR) -> List[Any]:
+    """Load every supported file under data_dir (PDF, text, CSV, Word), in sorted order."""
+    documents = []
+    for path in sorted(data_dir.rglob("*")):
+        loader_cls = LOADERS.get(path.suffix.lower())
+        if loader_cls is None or not path.is_file():
+            continue
+        loaded = loader_cls(str(path)).load()
+        print(f"[DEBUG] Loaded {len(loaded)} docs from {path}")
         documents.extend(loaded)
     return documents
+
+
+def load_document(filename: str, data_dir: Path = DATA_DIR) -> List[Any]:
+    """Load one file by name, e.g. a file the user picked in the UI ("pdf/attension.pdf")."""
+    path = data_dir / filename
+    loader_cls = LOADERS.get(path.suffix.lower())
+    if loader_cls is None:
+        raise ValueError(f"Unsupported file type: {path.suffix}")
+    if not path.exists():
+        raise FileNotFoundError(filename)
+    return loader_cls(str(path)).load()
