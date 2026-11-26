@@ -32,9 +32,57 @@ class RAGSearch:
         response = self.llm.invoke([prompt])
         return response.content
 
+    def answer_with_sources(self, query: str, top_k: int = 5, max_distance: float = 1.2) -> dict:
+        """Answer the query from the closest chunks and list which chunks were used.
+
+        Chunks farther than `max_distance` (L2) from the query are ignored.
+        Returns {"answer": str, "sources": [{"rank": int, "distance": float, "preview": str}]}.
+        """
+        results = self.vectorstore.query(query, top_k=top_k)
+        relevant = [r for r in results if r["distance"] <= max_distance]
+
+        sources = []
+        numbered_context = []
+        for rank in range(1, len(relevant)):
+            text = relevant[rank]["metadata"]["text"]
+            numbered_context.append(f"[{rank}] {text}")
+            sources.append({
+                "rank": rank,
+                "distance": float(relevant[rank]["distance"]),
+                "preview": text[:120],
+            })
+
+        if not numbered_context:
+            return {"answer": "No relevant documents found.", "sources": []}
+
+        context = "\n\n".join(numbered_context)
+        prompt = (
+            "Answer the question using only the numbered context below. "
+            "Cite the chunks you use like [1], [2].\n\n"
+            f"Question: {query}\n\nContext:\n{context}\n\nAnswer:"
+        )
+        response = self.llm.invoke([prompt])
+        return {"answer": response.content, "sources": sources}
+
+    def ask_many(self, queries: list, top_k: int = 5) -> list:
+        """Answer several questions, reusing one cached answer per repeated question."""
+        cache = {}
+        answers = []
+        for q in queries:
+            key = q.strip().lower()
+            if key not in cache:
+                cache[key] = self.answer_with_sources(q, top_k=top_k)
+            answers.append(cache[key])
+        return answers
+
 # Example usage
 if __name__ == "__main__":
     rag_search = RAGSearch()
     query = "What is attention mechanism?"
     summary = rag_search.search_and_summarize(query, top_k=3)
-    print("Summary:", summary) 
+    print("Summary:", summary)
+
+    result = rag_search.answer_with_sources(query, top_k=3)
+    print("Answer:", result["answer"])
+    for source in result["sources"]:
+        print(f"  [{source['rank']}] distance={source['distance']:.3f} {source['preview']}") 

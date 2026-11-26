@@ -58,7 +58,9 @@ class FaissVectorStore:
         results = []
         for idx, dist in zip(I[0], D[0]):
             meta = self.metadata[idx] if idx < len(self.metadata) else None
-            results.append({"index": idx, "distance": dist, "metadata": meta})
+            results.append({"index": int(idx), "distance": float(dist), "metadata": meta})
+        # closest first, so callers can stop at the first chunk that is too far away
+        results.sort(key=lambda r: r["distance"], reverse=True)
         return results
 
     def query(self, query_text: str, top_k: int = 5):
